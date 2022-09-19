@@ -11,6 +11,8 @@
 #include <learnopengl/camera.h>
 #include <learnopengl/model.h>
 
+#include <random>
+
 #include <iostream>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -21,8 +23,10 @@ unsigned int loadTexture(const char *path);
 unsigned int loadCubemap(vector<std::string> faces);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
 void renderQuad();
+void renderCube();
 
 // settings
+bool ssaoButton=false;
 const unsigned int SCR_WIDTH = 1600;
 const unsigned int SCR_HEIGHT = 800;
 bool hdr = true;
@@ -31,8 +35,14 @@ bool bloom = true;
 bool bloomKeyPressed = false;
 float exposure = 0.3;
 
+bool on_left=false,on_right=false,front=false,back=true;
+
 bool blinn = false;
 bool flag = false;
+
+glm::vec3 seagulllocation(0.0f,0.0f,7.0f);
+
+void seagullMovement(Camera_Movement direction);
 
 //lighting
 glm::vec3 lightPos(5.2f, 5.0f, -2.0f);
@@ -48,6 +58,11 @@ bool firstMouse = true;
 // timing
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+float lerp(float a, float b, float f)
+{
+    return a + f * (b - a);
+}
 
 int main()
 {
@@ -101,6 +116,13 @@ int main()
 
     // build and compile shaders
     // -------------------------
+
+    //SSAO shader
+    Shader shaderGeometryPass("resources/shaders/ssao_geometry.vs", "resources/shaders/ssao_geometry.fs");
+    Shader shaderLightingPass("resources/shaders/ssao.vs", "resources/shaders/ssao_lighting.fs");
+    Shader shaderSSAO("resources/shaders/ssao.vs", "resources/shaders/ssao.fs");
+    Shader shaderSSAOBlur("resources/shaders/ssao.vs", "resources/shaders/ssao_blur.fs");
+
     Shader shader("resources/shaders/cubemaps.vs", "resources/shaders/cubemaps.fs");
     Shader skyboxShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
     Shader shaderM("resources/shaders/instancing.vs", "resources/shaders/instancing.fs");
@@ -135,54 +157,6 @@ int main()
 
     Model cruiser("resources/objects/boat/11806_boat_v1_L3.obj");
     cruiser.SetShaderTextureNamePrefix("material.");
-
-
-    // set up vertex data (and buffer(s)) and configure vertex attributes
-    // ------------------------------------------------------------------
-//    float cubeVertices[] = {
-//            // positions          // texture Coords
-//            -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-//            0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-//            0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-//            0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-//            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-//            -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-//
-//            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-//            0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-//            0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-//            0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-//            -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-//            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-//
-//            -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-//            -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-//            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-//            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-//            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-//            -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-//
-//            0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-//            0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-//            0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-//            0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-//            0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-//            0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-//
-//            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-//            0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-//            0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-//            0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-//            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-//            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-//
-//            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-//            0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-//            0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-//            0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-//            -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-//            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-//    };
 
     float cubeVertices[] = {
             // back face (CCW winding)
@@ -371,6 +345,36 @@ int main()
             1.0f,  0.5f,  0.0f,  1.0f,  0.0f
     };
 
+    unsigned int gBuffer;
+    glGenFramebuffers(1, &gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+
+    unsigned int gPosition, gNormal, gAlbedo;
+
+    // position color buffer
+    glGenTextures(1, &gPosition);
+    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0);
+    // normal color buffer
+    glGenTextures(1, &gNormal);
+    glBindTexture(GL_TEXTURE_2D, gNormal);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0);
+    // color + specular color buffer
+    glGenTextures(1, &gAlbedo);
+    glBindTexture(GL_TEXTURE_2D, gAlbedo);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedo, 0);
+
     unsigned int planeeVAO, planeeVBO;
     glGenVertexArrays(1, &planeeVAO);
     glGenBuffers(1, &planeeVBO);
@@ -459,7 +463,6 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-
     // plane VAO
     unsigned int planeVAO, planeVBO;
     glGenVertexArrays(1, &planeVAO);
@@ -525,6 +528,63 @@ int main()
             std::cout << "Framebuffer not complete!" << std::endl;
     }
 
+    // also create framebuffer to hold SSAO processing stage
+    // -----------------------------------------------------
+    unsigned int ssaoFBO, ssaoBlurFBO;
+    glGenFramebuffers(1, &ssaoFBO);  glGenFramebuffers(1, &ssaoBlurFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
+    unsigned int ssaoColorBuffer, ssaoColorBufferBlur;
+    // SSAO color buffer
+    glGenTextures(1, &ssaoColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, ssaoColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, SCR_WIDTH, SCR_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoColorBuffer, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "SSAO Framebuffer not complete!" << std::endl;
+    // and blur stage
+    glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
+    glGenTextures(1, &ssaoColorBufferBlur);
+    glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, SCR_WIDTH, SCR_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoColorBufferBlur, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "SSAO Blur Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
+    std::default_random_engine generator;
+    std::vector<glm::vec3> ssaoKernel;
+    for (unsigned int i = 0; i < 64; ++i)
+    {
+        glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
+        sample = glm::normalize(sample);
+        sample *= randomFloats(generator);
+        float scale = float(i) / 64.0;
+
+        // scale samples s.t. they're more aligned to center of kernel
+        scale = lerp(0.1f, 1.0f, scale * scale);
+        sample *= scale;
+        ssaoKernel.push_back(sample);
+    }
+    // generate noise texture
+    // ----------------------
+    std::vector<glm::vec3> ssaoNoise;
+    for (unsigned int i = 0; i < 16; i++)
+    {
+        glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f); // rotate around z-axis (in tangent space)
+        ssaoNoise.push_back(noise);
+    }
+    unsigned int noiseTexture; glGenTextures(1, &noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssaoNoise[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
     unsigned int cubeTexture = loadTexture(FileSystem::getPath("resources/textures/block_solid.png").c_str());
     //unsigned int floorTexture = loadTexture(FileSystem::getPath("resources/textures/space.jpg").c_str());
 
@@ -541,6 +601,7 @@ int main()
 
     unsigned int transparentTexture = loadTexture("resources/textures/cloud.png");
 
+    glm::vec3 lightColor = glm::vec3(0.86, 0.3f, 0.2f);
 
     // shader configuration
     // --------------------
@@ -577,6 +638,18 @@ int main()
     hdrShader.setInt("hdrBuffer", 0);
     hdrShader.setInt("bloomBlur", 1);
 
+    shaderLightingPass.use();
+    shaderLightingPass.setInt("gPosition", 0);
+    shaderLightingPass.setInt("gNormal", 1);
+    shaderLightingPass.setInt("gAlbedo", 2);
+    shaderLightingPass.setInt("ssao", 3);
+    shaderSSAO.use();
+    shaderSSAO.setInt("gPosition", 0);
+    shaderSSAO.setInt("gNormal", 1);
+    shaderSSAO.setInt("texNoise", 2);
+    shaderSSAOBlur.use();
+    shaderSSAOBlur.setInt("ssaoInput", 0);
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
@@ -586,6 +659,8 @@ int main()
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        float time = currentFrame;
 
         // input
         // -----
@@ -597,6 +672,140 @@ int main()
 
         glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if(ssaoButton==true){
+            // 1. geometry pass: render scene's geometry/color data into gbuffer
+            // -----------------------------------------------------------------
+            glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float) SCR_WIDTH / (float) SCR_HEIGHT,
+                                                    0.1f, 100.0f);
+            glm::mat4 view = camera.GetViewMatrix();
+            glm::mat4 model = glm::mat4(1.0f);
+            shaderGeometryPass.use();
+            shaderGeometryPass.setMat4("projection", projection);
+            shaderGeometryPass.setMat4("view", view);
+            // room cube
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(0.0, 20.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(20.0f));
+            shaderGeometryPass.setMat4("model", model);
+            shaderGeometryPass.setInt("invertedNormals", 1); // invert normals as we're inside the cube
+            renderCube();
+            shaderGeometryPass.setInt("invertedNormals", 0);
+
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(-1.9f ,-1.0f, -2.0f));
+            model= glm::scale(model, glm::vec3(0.005f));
+            model = glm::rotate(model, glm::radians(270.0f), glm::vec3(1.0, 0.0, 0.0));
+            model = glm::rotate(model, glm::radians(220.0f), glm::vec3(0.0, 0.0, 1.0));
+            shaderGeometryPass.setMat4("model", model);
+            cruiser.Draw(shaderGeometryPass);
+
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(5.3f, 5.5f, -60.2f));
+            model = glm::scale(model, glm::vec3(0.01f));
+            model = glm::rotate(model,glm::radians(270.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            model = glm::rotate(model, (float)glfwGetTime()-100.0f, glm::vec3(0.0f, 0.0f, 1.0f));
+            shaderGeometryPass.setMat4("model", model);
+            balloon.Draw(shaderGeometryPass);
+
+            // seagull
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(-2.0f, -5.0f, -11.0f));
+            model= glm::scale(model, glm::vec3(0.1f));
+            model = glm::rotate(model, glm::radians(270.0f), glm::vec3(1.0, 0.0, 0.0));
+            model = glm::rotate(model, glm::radians(150.0f), glm::vec3(0.0, 0.0, 1.0));
+            shaderGeometryPass.setMat4("model", model);
+            seagull.Draw(shaderGeometryPass);
+
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, seagulllocation);
+
+            if (back)
+                model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
+            if (front) {
+                model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
+                model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0, 0.0, 1.0));
+            }
+            if (on_left) {
+                model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
+                model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0, 0.0, 1.0));
+            }
+            if (on_right) {
+                model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0, 0.0, 0.0));
+                model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0, 0.0, 1.0));
+            }
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(cos((float)currentFrame/5)*25 ,0.0f, 3.0f));
+            model = glm::translate(model, glm::vec3(53.3f, 32.5f, -55.2f));
+            model = glm::scale(model, glm::vec3(0.005f));
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0));
+            model = glm::rotate(model, glm::radians(270.0f), glm::vec3(1.0, 0.0, 0.0));
+            model = glm::rotate(model, glm::radians(60.0f), glm::vec3(0.0, 0.0, 1.0));
+            shaderGeometryPass.setMat4("model", model);
+            airplane.Draw(shaderGeometryPass);
+
+//            if (okreni) {
+//                for (unsigned int i = 0; i < p; i++) {
+//                    shaderGeometryPass.setMat4("model", modelMatrices[i]);
+//                    seagull.Draw(shaderGeometryPass);
+//                }
+//            }
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            // 2. generate SSAO texture
+            // ------------------------
+            glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
+            glClear(GL_COLOR_BUFFER_BIT);
+            shaderSSAO.use();
+            // Send kernel + rotation
+            for (unsigned int i = 0; i < 64; ++i)
+                shaderSSAO.setVec3("samples[" + std::to_string(i) + "]", ssaoKernel[i]);
+            shaderSSAO.setMat4("projection", projection);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, gPosition);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, gNormal);
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, noiseTexture);
+            renderQuad();
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            // 3. blur SSAO texture to remove noise
+            // ------------------------------------
+            glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
+            glClear(GL_COLOR_BUFFER_BIT);
+            shaderSSAOBlur.use();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, ssaoColorBuffer);
+            renderQuad();
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            // 4. lighting pass: traditional deferred Blinn-Phong lighting with added screen-space ambient occlusion
+            // -----------------------------------------------------------------------------------------------------
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            shaderLightingPass.use();
+            // send light relevant uniforms
+            glm::vec3 lightPosView = glm::vec3(camera.GetViewMatrix() * glm::vec4(lightPos, 1.0));
+            shaderLightingPass.setVec3("light.Position", lightPosView);
+            shaderLightingPass.setVec3("light.Color", lightColor);
+            // Update attenuation parameters
+                const float linear = 0.09;
+            const float quadratic = 0.032;
+            shaderLightingPass.setFloat("light.Linear", linear);
+            shaderLightingPass.setFloat("light.Quadratic", quadratic);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, gPosition);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, gNormal);
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, gAlbedo);
+            glActiveTexture(GL_TEXTURE3); // add extra SSAO texture to lighting pass
+            glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
+            renderQuad();
+        }
 
         lightingShader.use();
         if(!flag) {
@@ -1051,6 +1260,34 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
 
+    if(glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS){
+        ssaoButton=true;
+    }
+    if(glfwGetKey(window, GLFW_KEY_X) == GLFW_RELEASE){
+        ssaoButton=false;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+        front = true;
+        back = on_right = on_left = false;
+        seagullMovement(FORWARD);
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        back = true;
+        front = on_left = on_right = false;
+        seagullMovement(BACKWARD);
+    }
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+        on_left = true;
+        on_right = front = back = false;
+        seagullMovement(LEFT);
+    }
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+        on_right=true;
+        on_left=front=back=false;
+        seagullMovement(RIGHT);
+    }
+
     if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS && !hdrKeyPressed)
     {
         hdr = !hdr;
@@ -1212,8 +1449,95 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             flag=true;
         }
     }
+}
 
+void seagullMovement(Camera_Movement direction)
+{
+    float v = 2.5f * deltaTime;
+    glm::vec3 s(1.0f, 0.0f, 1.0f);
 
+    if (direction == FORWARD)
+        seagulllocation += camera.Front * v * s;
+    if (direction == BACKWARD)
+        seagulllocation -= camera.Front * v * s;
+    if (direction == LEFT)
+        seagulllocation -= camera.Right * v * s;
+    if (direction == RIGHT)
+        seagulllocation += camera.Right * v * s;
+}
+
+unsigned int cubeVAO = 0;
+unsigned int cubeVBO = 0;
+
+void renderCube()
+{
+    // initialize (if necessary)
+    if (cubeVAO == 0)
+    {
+        float vertices[] = {
+                // back face
+                -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+                1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+                1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right
+                1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+                -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+                -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, // top-left
+                // front face
+                -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+                1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, // bottom-right
+                1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+                1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+                -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, // top-left
+                -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+                // left face
+                -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+                -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
+                -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+                -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+                -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+                -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+                // right face
+                1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+                1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+                1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right
+                1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+                1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+                1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left
+                // bottom face
+                -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+                1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+                1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+                1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+                -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+                -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+                // top face
+                -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+                1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+                1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right
+                1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+                -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+                -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left
+        };
+        glGenVertexArrays(1, &cubeVAO);
+        glGenBuffers(1, &cubeVBO);
+        // fill buffer
+        glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        // link vertex attributes
+        glBindVertexArray(cubeVAO);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+    // render Cube
+    glBindVertexArray(cubeVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
 }
 
 
